@@ -1,24 +1,28 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "./IERC1271.sol";
-
 contract SigVerifier {
 
-  function verifySignature(address recipient, address sender, uint256 amount, uint256 nonce, bytes memory signature) public view returns (bool) {
+  mapping(address => mapping(bytes32 => bool)) public crosssChainFills;
+
+  function verifySignature(address recipient, address sender, uint256 amount, uint256 nonce, bytes memory signature) public returns (bool) {
       // Recreate the message signed on the client
-      bytes32 message = prefixed(keccak256(abi.encodePacked(sender, recipient, amount, nonce, this)));
+      bytes32 message = prefixed(keccak256(abi.encodePacked(sender, recipient, amount, nonce, msg.sender)));
+      require(crosssChainFills[sender][message] == false, "SigVerifier: Invalid nonce");
+      
       uint8 v;
       bytes32 r;
       bytes32 s;
       (v, r, s) = splitSignature(signature);
       address signerAddress = ecrecover(message, v, r, s);
       require(sender == signerAddress, "SigVerifier: Signer is not sender");
+      crosssChainFills[sender][message] = true;
       return true;
   }
 
   function splitSignature(bytes memory _signature) internal pure returns (uint8, bytes32, bytes32) {
     require(_signature.length == 65, "SigVerifier: Invalid signature length");
+
     bytes32 r;
     bytes32 s;
     uint8 v;
